@@ -1,6 +1,7 @@
 import sys, logging, argparse
-from rom import NESROM
-from copynes import CopyNESPlugin, CopyNES
+from copynes import CopyNES
+from copynes.rom import from_ines, to_ines
+from copynes.plugin import CopyNESPlugin
 
 class CopyNESCLI(object):
 
@@ -25,7 +26,8 @@ class CopyNESCLI(object):
         parser = argparse.ArgumentParser(description = 'Command line interface to a USB CopyNES')
         parser.add_argument(
                 '-v', '--verbose',
-                action = 'count')
+                action = 'count',
+                help = 'increase logging level')
         parser.add_argument(
                 '--data',
                 metavar = 'DEVICE',
@@ -79,7 +81,7 @@ class CopyNESCLI(object):
 
         subparser = subparsers.add_parser(
                 'readmem',
-                help = 'read $100 bytes from NES memory')
+                help = 'read bytes from NES memory')
         subparser.add_argument(
                 'start',
                 type = CopyNESCLI.__parse_int,
@@ -169,15 +171,11 @@ class CopyNESCLI(object):
     def download_rom(self, plugin_name, ines_mapper, file):
         plugin = CopyNESPlugin.from_name(plugin_name)
         rom = self.copynes.download_rom(plugin, ines_mapper)
-        rom.to_file(file)
+        to_ines(rom, file)
 
     def upload_rom(self, file, plugin_name):
         plugin = CopyNESPlugin.from_name(plugin_name)
         handler = CopyNESPlugin.upload_handler(plugin_name)
-        rom = NESROM.from_file(file)
+        rom = from_ines(file)
         handler(self.copynes, plugin, rom)
         self.play_cart()
-
-
-if __name__ == '__main__':
-    CopyNESCLI().process_command_line()
