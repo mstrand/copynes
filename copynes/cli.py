@@ -2,6 +2,7 @@ import sys, logging, argparse
 from copynes import CopyNES
 from copynes.rom import from_ines, to_ines
 from copynes.plugin import CopyNESPlugin
+import time
 
 class CopyNESCLI(object):
 
@@ -59,7 +60,23 @@ class CopyNESCLI(object):
                 choices = CopyNESPlugin.supported_upload_plugins(),
                 default = CopyNESPlugin.supported_upload_plugins()[0],
                 help = 'RAM cart plugin to use [default: %(default)s]')
-    
+
+        subparser = subparsers.add_parser(
+                'run',
+                description = 'run a CopyNES plugin',
+                help = 'run a CopyNES plugin')
+        subparser.add_argument(
+                '--wait',
+                metavar = 'n',
+                default = 1,
+                help = 'Let the plugin run for n seconds [default: %(default)s]')
+        subparser.add_argument(
+                'file',
+                nargs = '?',
+                type = CopyNESCLI.__parse_input_file,
+                default = sys.stdin.buffer,
+                help = 'plugin filename [default: use stdin]')
+
         subparser = subparsers.add_parser(
                 'play',
                 help = 'put the CopyNES in "play" mode')
@@ -80,8 +97,8 @@ class CopyNESCLI(object):
                 help = 'output filename [default: use stdout]')
 
         subparser = subparsers.add_parser(
-                'readmem',
-                help = 'read bytes from NES memory')
+                'readcpu',
+                help = 'read bytes from CPU memory space')
         subparser.add_argument(
                 'start',
                 type = CopyNESCLI.__parse_int,
@@ -96,6 +113,20 @@ class CopyNESCLI(object):
                 type = CopyNESCLI.__parse_output_file,
                 default = sys.stdout.buffer,
                 help = 'output filename [default: use stdout]')
+
+        subparser = subparsers.add_parser(
+                'writecpu',
+                help = 'write bytes to CPU memory space')
+        subparser.add_argument(
+                'address',
+                type = CopyNESCLI.__parse_int,
+                help = 'start address')
+        subparser.add_argument(
+                'file',
+                nargs = '?',
+                type = CopyNESCLI.__parse_output_file,
+                default = sys.stdout.buffer,
+                help = 'input filename [default: use stdout]')
 
         subparser = subparsers.add_parser(
                 'version',
@@ -131,14 +162,21 @@ class CopyNESCLI(object):
             self.play_cart()
         elif args.command == 'download':
             self.download_rom(args.plugin, args.mapper, args.file)
-        elif args.command == 'readmem':
+        elif args.command == 'readcpu':
             if not (0 <= args.start < 0x10000) or not (0 <= args.end < 0x10000):
-                print("address must be within $0000-$FFFF", file = sys.stderr)
+                logging.error("address must be within $0000-$FFFF")
             elif args.start > args.end:
-                print("end address must >= start address", file = sys.stderr)
+                logging.error("end address must be >= start address")
             else:
                 self.read_cpu_memory(args.start, args.end, args.file)
-    
+        elif args.command == 'writecpu':
+            if not (0 <= args.address < 0x10000):
+                logging.error("address must be within $0000-$FFFF")
+            else:
+                self.write_cpu_memory(args.address, args.file)
+        elif args.command == 'run':
+            self.run_plugin(args.file, args.wait)
+
         self.copynes.disconnect()
         logging.info('Disconnected from CopyNES')
         
@@ -158,15 +196,22 @@ class CopyNESCLI(object):
         self.copynes.copy_mode()
     
     def read_cpu_memory(self, start, end, file):
-        # Can only read full pages
         read_start = start & 0xff00
         read_end = (end & 0xff00) + 0x0100
         read_length = read_end - read_start
         data = self.copynes.read_cpu_memory(read_start, read_length)
 
-        # Grab the data we were looking for
         data = data[start - read_start:end + 1 - read_start]
         file.write(data)
+    
+    def run_plugin(self, stream, wait):
+        plugin = CopyNESPlugin(stream)
+        self.copynes.run_plugin(plugin)
+        time.sleep(float(wait))
+
+    def write_cpu_memory(self, address, file):
+        data = file.read()
+        self.copynes.write_cpu_memory(address, data)
 
     def download_rom(self, plugin_name, ines_mapper, file):
         plugin = CopyNESPlugin.from_name(plugin_name)
