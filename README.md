@@ -50,9 +50,19 @@ First, make sure to place the appropriate plugin in the `plugins` directory, e.g
     copynes.py upload --plugin pplite < smb.nes
 
 ### Read memory
-Get a binary dump of a memory section.
+Get a binary dump of CPU memory space.
 
-    copynes.py readmem 0x0000 0x07ff > ram-dump.bin
+    copynes.py readcpu 0x0000 0x07ff > ram-dump.bin
+
+### Write memory
+Write data to CPU memory space.
+
+    copynes.py writecpu 0x0000 < ram-dump.bin
+
+### Run CopyNES plugin
+Run a custom CopyNES plugin. Data sent from the plugin is not handled in any way, the plugin is just started and then ignored.
+
+    copynes.py run < my-custom-plugin.bin
 
 ### Check BIOS version
 
